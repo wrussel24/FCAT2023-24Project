@@ -1,0 +1,526 @@
+title: "Lecture 24 Code"
+author: "Ahmet Ay"
+date: "01/11/2024"
+
+---
+
+Average Temperature Plots:
+```{r}
+library(ggplot2)
+library(tidyr)
+
+# Your data (replace this with your actual data)
+averages <- c(32.39411765, 33.4754902, 33.12058824, 31.555, 31.825, 31.7575, 33.02592593, 33.57222222, 33.13333333, 32.01481481, 32.31111111, 32.23703704)
+standard_errors <- c(0.333621386, 0.199560166, 0.246127563, 0.280152366, 0.372903173, 0.360857876, 0.286264008, 0.290450251, 0.316857792, 0.355930773, 0.264593078, 0.379651518)
+
+# Organize data for plotting
+data_summary <- data.frame(
+  TimePoint = rep(c("0 min", "15 min", "30 min"), 4),
+  Season = rep(c("Summer Non-Repeated", "Winter Non-Repeated", "Summer Repeated", "Winter Repeated"), each = 3),
+  Value = averages,
+  SE = standard_errors
+)
+
+# Define line types and colors based on Season and Repeated/Non-Repeated
+data_summary$linetype <- ifelse(data_summary$Season == "Summer Non-Repeated", "solid",
+                                ifelse(data_summary$Season == "Summer Repeated", "dashed",
+                                       ifelse(data_summary$Season == "Winter Non-Repeated", "solid", "dashed")))
+
+data_summary$color <- ifelse(data_summary$Season == "Summer Non-Repeated", "red",
+                             ifelse(data_summary$Season == "Summer Repeated", "red",
+                                    ifelse(data_summary$Season == "Winter Non-Repeated", "blue", "blue")))
+
+# Plotting
+p <- ggplot(data_summary, aes(x = TimePoint, y = Value, color = color, linetype = linetype, group = Season)) +
+  geom_errorbar(aes(ymin = Value - SE, ymax = Value + SE), width = 0.25, size = 1) +
+  geom_line(size=1) +
+  geom_point(size = 4) +
+  scale_color_identity() +
+  scale_linetype_identity() +
+  ylab(expression("T"['eye']*~(degree*C))) +
+  xlab("Time After Exercise") +
+  ylim(30.5, 34.5) +  # Adjust the y-axis limits as needed
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 28),
+    axis.title = element_text(size = 32),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10),
+    legend.position = c(0.8, 0.9),
+    panel.border = element_rect(colour = "black", fill = NA),
+    legend.background = element_blank(),
+    legend.box.background = element_rect(colour = "black")
+  )
+
+# Custom legend mapping for linetype and color
+p + guides(
+  color = guide_legend(title = "Season"),
+  linetype = guide_legend(title = "Season"),
+  override.aes = list(
+    linetype = c("solid", "dashed", "solid", "dashed"),
+    color = c("red", "red", "blue", "blue")
+  ),
+  ncol = 1
+)
+
+ggsave(filename = "~/Desktop/Plot_eye.jpg", plot = p, width = 8.7, height = 7.0, dpi = 250)
+```
+
+
+
+I. MULTIVARIATE LINEAR REGRESSION 
+
+```{r} 
+rm(list = ls()) 
+detach(MultiLogistic) #Make sure to run this each time before you run the regression, it clears the whole workspace
+```
+
+```{r}
+MultiLinear<-read.csv("FilePath/FileName.csv",header=T) 
+attach(MultiLinear)
+
+bodymass<-as.numeric(bodymasskg)
+age<-as.numeric(ageyears)
+training<-as.numeric(howlonghasyourdogparticipatedinagilityeventsyears)
+trainprop<-as.numeric(Trainingproportion)
+temp<-as.numeric(environmentalTempC)
+coatlength<-as.numeric(coatlengthcm)
+eyearea<-as.numeric(Singleeyearea)
+nosew<-as.numeric(nosewidth)
+#nosel<-as.numeric(noselength)
+nosea<-as.numeric(nosearea)
+paw<-as.numeric(pawwidth)
+ear<-as.numeric(earlength)
+snout<-as.numeric(snoutlength)
+#season<-as.factor(Summer)
+sex<-as.factor(Male)
+furnished<-as.factor(FurnishedCoat)
+darkercoat<-as.factor(DarkCoat)
+erectears<-as.factor(ErectEars)
+lengthycoat<-(LongCoat)
+```
+
+
+```{r}
+pairs(~Tear +MaySeason,JulySeason,AugustSeason,BodyMass+age+sex+FixedStatus+ShortCoat+CurlyCoat+LongCoat+DoubleCoat+DarkCoat+PointyEars+yrsexercising+temp+Coatlengthcont+eyearea+nosew+nosel+nosea+snoutl+earwidth+paw+earlengthcont+leglengthcont+height, main='') 
+
+
+
+A. Assumptions for Multivariate Regression
+
+#Multicollinearity
+```{r}
+round(cor(cbind(MaySeason,JulySeason,BodyMass,age,sex,FixedStatus,ShortCoat,CurlyCoat,DarkCoat,PointyEars,yrsexercising,temp,Coatlengthcont,eyearea,nosel,paw)),2) 
+
+#REMOVE NOSEW and SNOUTL, REMOVE SEASONS, REMOVE LEGLENGTH, REMOVE HEIGHT, REMOVE EARLENGTH, REMOVE LONG and DOUBLE COAT, REMOVE NOSEA, REMOVE EARWIDTH
+#For May remove Eye area, nose width, nose length, nose area, height, paw, ear width, short coat
+#For July and August remove nose area, body mass, nose width, paw, leg length, height, ear width, short coat, long coat
+```
+
+The VIF scores should be close to 1 but under 10 is fine and 10+ suggests high collinearity so the variable may not be needed. All the values in this analysis have scores close to 1.
+
+```{r}
+library(car)
+reg2<-lm(DV ~ IVs) 
+vif(reg2)
+```
+
+Durbin Watson Test.
+```{r}
+set.seed(13)
+library(car)
+durbinWatsonTest(reg2)
+```
+
+Linearity and Homoscedasticity. 
+```{r}
+plot(reg2, which = 1)
+```
+
+
+Outliers.  
+
+```{r}
+plot(reg2, which = 4)
+plot(reg2, which = 5)
+```
+
+
+
+Normality. Histogram and QQ plots of residuals, and Shapiro Test are used to check the assumption of normality. 
+
+```{r}
+hist(reg2$residuals, freq=FALSE, xlab = "Residuals", main="",cex.axis=1.5,cex.lab=1.5)
+curve(dnorm(x,mean(reg2$residuals), sd(reg2$residuals)), -1.6, 2.1, add=TRUE,col=c('red'))
+qqnorm(reg2$residuals, main="")
+qqline(reg2$residuals)
+shapiro.test(reg2$residuals)
+```
+
+
+B. PERFORM MULTIVARIATE REGRESSION
+
+
+```{r}
+reg2<-lm(DV~ IV1+IV2)
+summary(reg2)
+```
+
+MAIN REGRESSION (gives full model and stepwise model - stepwise results are used in this analysis.
+```{r}
+#install.packages("MASS")
+library(MASS)
+library(stats)
+full.model <- lm(DV ~IV1+IV2, data = swiss) # Fit the full model 
+summary(full.model) #This summary is for the full model, which incorporates ALL of the variables.
+
+step.model <- stepAIC(full.model, direction = "both", trace = FALSE) # Stepwise regression model
+summary(step.model) #the step model results are what we're after. These wll be printed below the full model.
+
+# Extract the p-values from the model summary
+p_values <- summary(step.model)$coefficients[, "Pr(>|t|)"]
+
+# Perform the Benjamin-Hochberg correction
+corrected_p_values <- p.adjust(p_values, method = "fdr")
+
+# Create a new data frame with coefficients and corrected p-values (We make sure to collect the p- and adjusted p-values)
+coefficients_with_corrected_p <- cbind(summary(step.model)$coefficients, Corrected_P_Value = corrected_p_values)
+
+# Print the updated coefficients table
+print(coefficients_with_corrected_p)
+```
+
+
+
+#Logistic Regression
+```{r}
+library(mlbench)     
+library(dplyr)       
+library(broom)       
+library(visreg)      
+library(rcompanion)  
+library(MASS)        
+library(ROCR)        
+library(car)         
+library(stats)
+```
+
+
+```{r}
+rm(list = ls())
+detach(MultiLogistic)
+```
+
+```{r}
+MultiLogistic<-read.csv("FilePath/FileName.csv",header=T)
+attach(MultiLogistic)
+
+bodymass<-as.numeric(bodymasskg)
+age<-as.numeric(ageyears)
+training<-as.numeric(howlonghasyourdogparticipatedinagilityeventsyears)
+trainprop<-as.numeric(Trainingproportion)
+temp<-as.numeric(environmentalTempC)
+coatlength<-as.numeric(coatlengthcm)
+eyearea<-as.numeric(Singleeyearea)
+nosew<-as.numeric(nosewidth)
+#nosel<-as.numeric(noselength)
+nosea<-as.numeric(nosearea)
+paw<-as.numeric(pawwidth)
+ear<-as.numeric(earlength)
+snout<-as.numeric(snoutlength)
+#season<-as.factor(Summer)
+sex<-as.factor(Male)
+furnished<-as.factor(FurnishedCoat)
+darkercoat<-as.factor(DarkCoat)
+erectears<-as.factor(ErectEars)
+lengthycoat<-(LongCoat)
+
+```
+
+#Assumptions
+```{r}
+round(cor(cbind(BodyMass+age+sex+FixedStatus+DarkCoat)),2) 
+vif(model.final) 
+
+plot(model.final, which=4, cex.lab=1.3,cex.axis=1.3, cex=1.3, cex.id = 1.3, cex.caption = 1.3) 
+plot(model.final, which=5, cex.lab=1.3,cex.axis=1.3, cex=1.3, cex.id = 1.3, cex.caption = 1.3) 
+
+```
+
+```{r}
+model_logi = glm(DVs~ IV1+IV2, data=MultiLogistic, family = "binomial")         # Fitting a binary logistic regression
+summary(model_logi)                                                   # Model summary
+
+```
+
+STEP 2. Model with Less Variables (Stepwise Variable Selection)
+
+```{r}
+step.model = stepAIC(model_logi, direction = "both", trace = FALSE)   # Stepwise regression model
+summary(step.model)
+
+p_values <- summary(step.model)$coefficients[, "Pr(>|z|)"]
+
+# Apply Benjamini-Hochberg correction
+adjusted_p_values <- p.adjust(p_values, method = "BH")
+
+# Print adjusted p-values along with the original coefficients
+coefficients_with_adj_p <- cbind(summary(step.model)$coefficients, Adj_P_Value = adjusted_p_values)
+print(coefficients_with_adj_p)
+```
+
+STEP 3. Model Interpretation
+
+
+```{r}
+tidy(step.model, exponentiate = TRUE, conf.level = 0.95) # Odds ratio table
+```
+
+```{r}
+nagelkerke(step.model) # Pseudo R_squared values and Likelyhood ratio test
+```
+
+Association rule learning networks
+This code first runs association rule learning, and then constructs networks from the association rules that look cool. I will include a code below this one that allows you to just perform the association rule learning and examine the rules (which could be helpful). This code is much more quick to use than the above code, which is nice. You will probably perform association rule learning for the overall dataset for ear, eye, nose, mouth HDR slopes; and then do the same analysis by season. So 16 total analysis I think (4 x 4).
+
+This first code you need to run to install the necessary packages. It should do it all automatically. These packages must be installed and loaded in to run the ARL and network creation code.
+```{r}
+packages <- c("arules", "wordcloud", "arulesViz", "jpeg", "igraph", "dplyr", "Rgraphviz", "tidygraph", "ggraph", "stringr", "BiocManager", "remotes")
+
+# Function to check and install packages
+install_missing_packages <- function(packages) {
+  new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+  if (length(new_packages) > 0) {
+    install.packages(new_packages, dependencies = TRUE, repos = "http://cran.us.r-project.org")
+    cat("Installed the following packages:", paste(new_packages, collapse = ", "), "\n")
+  } else {
+    cat("All required packages are already installed.\n")
+  }
+}
+
+# Call the function to install missing packages
+install_missing_packages(packages)
+library(arules)
+library(wordcloud)
+library(arulesViz)
+library(jpeg)
+library(tiff)
+library(igraph)
+library(dplyr)
+library(Rgraphviz)
+library(tidygraph)
+library(ggraph)
+library(stringr)
+library(BiocManager)
+library(remotes)
+
+BiocManager::install("Rgraphviz")    
+remotes::install_github('adamlilith/legendary', dependencies=TRUE)
+library(legendary)
+```
+
+Network Generation
+```{r}
+path <- "FilePath" #Put the file path here (not including the file name)
+fname <- paste(path, "FileName.csv", sep = "/") #Put the file name here
+data <- read.csv(fname, check.names = FALSE)
+data <- data[,!names(data) %in% c("X")]
+data <- data.frame(lapply(data, as.logical))
+
+
+sup <- 0.5
+con <- 0.8                
+max <- 8                         
+min <- 4                              
+varOfInterest <- "DV"              
+minLift <- 1 
+out_file <- "OutputRules.csv" 
+
+if (varOfInterest != 'none'){
+  rules <- apriori(data, parameter = list(supp=sup, conf=con, maxlen=max, minlen = min, target ="rules"),
+                   appearance = list(default="lhs",rhs=varOfInterest))
+} else {
+  rules <- apriori(data, parameter = list(supp=sup, conf>=con, maxlen=max, minlen = min, lift = 1, target ="rules"))
+}
+
+rules.df = DATAFRAME(rules)
+write.csv(rules.df, out_file, row.names = FALSE)
+print(rules.df)
+
+lhs = labels(lhs(rules))
+rules.df = DATAFRAME(rules)
+lift.vals = rules.df$lift
+count.vals = rules.df$count
+lhs = gsub('[{}]', '', lhs)
+list.of.rules = strsplit(lhs, ",")
+lhs = paste(lhs, collapse = ",")
+lhs = unlist(strsplit(lhs, ","))
+LHS = data.frame(lhs = lhs)
+
+
+# ------------------------------- SNP PLOT ---------------------------- # 
+
+frequency_table = count(LHS, lhs)
+feature_names = sort(frequency_table$lhs)
+count_matrix = matrix(data = 0, nrow = length(feature_names),
+                      ncol = length(feature_names))
+
+colnames(count_matrix) = feature_names
+rownames(count_matrix) = feature_names
+
+lift_matrix <- count_matrix
+
+lift_total = data.frame(variable = feature_names,
+                        total_lift = rep(0, length(feature_names)),
+                        count =  rep(0, length(feature_names)))
+
+for (i in 1:length(list.of.rules)){
+  temp.vec = list.of.rules[[i]]
+  if (length(temp.vec) != 1){
+    for (feature in temp.vec){
+      lift_total$total_lift[which(lift_total$variable == feature)] = lift_total$total_lift[which(lift_total$variable == feature)] + lift.vals[i]
+        lift_total$count[which(lift_total$variable == feature)] = lift_total$count[which(lift_total$variable == feature)] + 1
+    }
+    for (j in 1:(length(temp.vec)-1)){
+      for (k in (j+1):length(temp.vec)){
+        count_matrix[temp.vec[j], temp.vec[k]] = 
+          count_matrix[temp.vec[j], temp.vec[k]] + 1
+        lift_matrix[temp.vec[j], temp.vec[k]] = 
+          lift_matrix[temp.vec[j], temp.vec[k]] + lift.vals[i]
+      }
+    }
+  }
+}
+
+lift_total <- lift_total %>% mutate(avg_lift = total_lift/count)
+
+
+count_matrix <- t(count_matrix) + count_matrix
+lift_matrix <- t(lift_matrix) + lift_matrix
+for (col in colnames(count_matrix)) {
+    count_matrix[col, col] <- count_matrix[col, col] / 2
+    lift_matrix[col, col] <- lift_matrix[col, col] / 2
+}
+
+
+count_matrix[lower.tri(count_matrix, diag = FALSE)] <- 0
+lift_matrix[lower.tri(lift_matrix, diag = FALSE)] <- 0
+
+
+edge_cutoff <- sum(count_matrix) / 100
+count_matrix[count_matrix < edge_cutoff] <- 0
+lift_matrix[count_matrix < edge_cutoff] <- 0
+
+
+graph = igraph::graph_from_adjacency_matrix(count_matrix, mode = "undirected",
+                                    diag = F, weighted = T)
+coords = layout_(graph, as_star(center = "CentralNodeHERE")) #This part you can modify to any variable you want. It places the variable in the center, making it the main focus of the network. You can choose a random variable and then look at the network and reselect a different variable that appears to have the most connections. It seems like body mass or exercise are probably the most logical variables to choose.
+
+
+current_node_names <- V(graph)$name
+new_node_names <- sub(".", " (", current_node_names, fixed = TRUE)
+new_node_names <- sub(".", ")", new_node_names, fixed = TRUE)
+V(graph)$label <- new_node_names
+
+
+edge_range_min = 2
+edge_range_max = 15
+
+min_weight <- min(E(graph)$weight)
+max_weight <- max(E(graph)$weight)
+
+edge_width <- edge_range_min + (E(graph)$weight - min_weight) / (max_weight - min_weight) * (edge_range_max - edge_range_min)
+
+
+color_palette <- colorRamp(c("royalblue", "cyan")) # you can pick your colors for the gradient
+
+node_lifts = lift_total$avg_lift
+edge_lifts <- numeric(0) # calculate edge colors by iterating over the adjacency matrices
+i <- 1
+for(row in rownames(lift_matrix)) {
+    for(col in colnames(lift_matrix)) {
+        if (lift_matrix[row, col] > 0) {
+            edge_avg_lift <- lift_matrix[row, col] / count_matrix[row, col]
+            edge_lifts[[i]] <- edge_avg_lift
+            i <- i + 1
+        }
+    }
+}
+
+all_lifts <- c(node_lifts, edge_lifts) # combine node averages and edge averages to maintain same color scale for both
+all_lifts_min <- min(all_lifts)
+all_lifts_max <- max(all_lifts)
+all_lifts_norm <- (all_lifts - all_lifts_min)/(all_lifts_max - all_lifts_min) # normalize average lifts
+
+colors_rgb <- color_palette(all_lifts_norm) # get color representations of normalized average lift on gradient
+colors_hex <- c()
+for (i in 1:nrow(colors_rgb)){
+    colors_hex[i] <- rgb(colors_rgb[i, 1], colors_rgb[i, 2], colors_rgb[i, 3], maxColorValue = 255)#changed from 255
+}
+node_colors <- colors_hex[1:length(node_lifts)] 
+edge_colors <- colors_hex[length(node_lifts) + 1:length(colors)]
+
+# start graphics and plot. Change the file name and path accordingly. You can have them output anywhere you want.
+jpeg(filename = "/Users/williamrussel/Desktop/TearOVERALLSNPNetwork.jpeg", width = 11, height = 8,
+         units = "in", res = 300)
+
+plot(graph, layout = na.omit(coords),
+     edge.width = edge_width,
+     edge.color = edge_colors,
+     normalize = F,
+     edge.arrow.mode = 0, 
+     vertex.color = node_colors, 
+     vertex.size =proportions(lift_total$count)*95+5, # you can change this formula if you want to make the nodes larger.
+     vertex.label.cex = 1.8, # you can change this metric to adjust the feature label font size.
+     vertex.label.font = 2, 
+     vertex.label.color= "black",
+     vertex.label.dist = case_when(
+         coords[, 2] == 0 & coords[, 1] == 0 ~ 3,
+         TRUE ~ 1.5 + abs(coords[, 1]) * 2.5
+     ), 
+     vertex.label.degree = case_when(
+         coords[, 2] == 0 & coords[, 1] == 0 ~ pi/4,
+         coords[, 1] >= 0 ~ -atan(coords[, 2] / coords[, 1]),
+         TRUE ~ -atan(coords[, 2] / coords[, 1]) + pi
+     ), 
+     margin = c(0, 0, 0, 0.75)
+)
+
+legendGrad(
+    'right',
+    vert = TRUE,
+    col = c("royalblue", "cyan"), # make sure the legend colors are the same as your gradient colors
+    labels = c(
+        round(seq(from = all_lifts_min, to = all_lifts_max, length.out = 5), digits = 2)
+    ),
+    titleCex = 2.0, #changed from 1.5. This controls the size of the legend title. 
+    labCex = 1.8,
+    height = 0.6, #This controls the length of the legend
+    width = 0.05,
+    title = "Average Lift",
+    inset = 0.05,
+    boxBorder = NULL
+)
+  
+dev.off()
+
+# Calculate centrality metrics
+degree_centrality <- igraph::degree(graph)
+betweenness_centrality <- igraph::betweenness(graph)
+closeness_centrality <- igraph::closeness(graph)
+eigenvector_centrality <- igraph::eigen_centrality(graph)$vector
+
+# Combine centrality metrics into a data frame
+centrality_data <- data.frame(
+  Node = V(graph)$name,  # Assuming node names are stored as 'name' attribute
+  Degree = degree_centrality,
+  Betweenness = betweenness_centrality,
+  Closeness = closeness_centrality,
+  Eigenvector = eigenvector_centrality
+)
+
+# Output centrality metrics to a file
+centrality_output_file <- "CentralityMetricsOutput.csv"
+write.csv(centrality_data, file = centrality_output_file, row.names = FALSE)
+
+```
